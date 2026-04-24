@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ひらがなをなぞろう</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+  body {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+  }
+  #header { padding: 16px; text-align: center; }
+  #char-display { font-size: 48px; color: #fff; letter-spacing: 12px; margin-bottom: 4px; }
+  .char-dot { display: inline-block; transition: all 0.3s; }
+  .char-dot.done { color: #ffd700; text-shadow: 0 0 12px #ffd700; }
+  .char-dot.current { color: #7ee8fa; animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  #instruction { color: rgba(255,255,255,0.7); font-size: 18px; margin-top: 4px; }
+  #canvas-wrap { position: relative; width: 340px; height: 340px; }
+  #guide-canvas, #draw-canvas {
+    position: absolute; top: 0; left: 0; border-radius: 24px;
+  }
+  #guide-canvas { background: rgba(255,255,255,0.06); }
+  #draw-canvas { background: transparent; }
+  #feedback {
+    margin-top: 12px; font-size: 28px; font-weight: bold;
+    min-height: 44px; color: #fff; text-align: center;
+    text-shadow: 0 0 16px currentColor;
+  }
+  #btn-row { display: flex; gap: 16px; margin-top: 14px; }
+  button {
+    padding: 14px 32px; border-radius: 50px; border: none;
+    font-size: 20px; font-weight: bold; cursor: pointer; transition: transform 0.1s;
+  }
+  button:active { transform: scale(0.95); }
+  #btn-clear { background: rgba(255,255,255,0.15); color: #fff; }
+  #btn-ok { background: linear-gradient(135deg, #f7971e, #ffd200); color: #1a1a2e; }
+  #fireworks-canvas {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 100;
+  }
+  #complete-banner {
+    display: none; position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #1a1a2e; padding: 32px 48px; border-radius: 32px;
+    font-size: 36px; font-weight: bold; z-index: 200; text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+</style>
+</head>
+<body>
+<div id="header">
+  <div id="char-display"></div>
+  <div id="instruction">ゆびでなぞってみよう！</div>
+</div>
+<div id="canvas-wrap">
+  <canvas id="guide-canvas" width="340" height="340"></canvas>
+  <canvas id="draw-canvas" width="340" height="340"></canvas>
+</div>
+<div id="feedback"></div>
+<div id="btn-row">
+  <button id="btn-clear">けす</button>
+  <button id="btn-ok">できた！</button>
+</div>
+<canvas id="fireworks-canvas"></canvas>
+<div id="complete-banner">
+  🎉 ぜんぶできたよ！<br>すごいね！<br>
+  <button id="btn-restart" style="margin-top:16px;background:#1a1a2e;color:#ffd200;font-size:20px;padding:12px 28px;">もういちど</button>
+</div>
+
+<script>
+const CHARS = ['あ','い','う','え','お'];
+let currentIdx = 0;
+let drawing = false;
+let strokes = [];
+let particles = [];
+
+const guideCtx = document.getElementById('guide-canvas').getContext('2d');
+const drawCtx  = document.getElementById('draw-canvas').getContext('2d');
+const fwCanvas = document.getElementById('fireworks-canvas');
+const fwCtx    = fwCanvas.getContext('2d');
+fwCanvas.width  = window.innerWidth;
+fwCanvas.height = window.innerHeight;
+
+function updateCharDisplay() {
+  document.getElementById('char-display').innerHTML =
+    CHARS.map((c,i) => `<span class="char-dot ${i<currentIdx?'done':i===currentIdx?'current':''}">${c}</span>`).join('');
+}
+
+function getCharPoints(ch) {
+  switch(ch) {
+    case 'あ': return [
+      [{x:170,y:60},{x:170,y:120}],
+      [{x:80,y:100},{x:260,y:100}],
+      [{x:180,y:110},{x:140,y:180},{x:100,y:250},{x:170,y:270},{x:240,y:240},{x:220,y:190},{x:160,y:200}]
+    ];
+    case 'い': return [
+      [{x:110,y:90},{x:100,y:200},{x:130,y:260}],
+      [{x:220,y:80},{x:210,y:190},{x:180,y:260},{x:160,y:280}]
+    ];
+    case 'う': return [
+      [{x:170,y:70},{x:170,y:110}],
+      [{x:230,y:130},{x:180,y:110},{x:110,y:140},{x:100,y:200},{x:130,y:250},{x:190,y:270},{x:240,y:250},{x:250,y:200}]
+    ];
+    case 'え': return [
+      [{x:100,y:110},{x:240,y:110}],
+      [{x:170,y:100},{x:160,y:190},{x:110,y:250},{x:170,y:280},{x:230,y:250},{x:230,y:180}]
+    ];
+    case 'お': return [
+      [{x:170,y:60},{x:170,y:120}],
+      [{x:80,y:110},{x:260,y:110}],
+      [{x:200,y:100},{x:190,y:170},{x:220,y:220},{x:190,y:260},{x:140,y:280},{x:100,y:260},{x:90,y:210},{x:120,y:180},{x:180,y:190}]
+    ];
+    default: return [[{x:170,y:170}]];
+  }
+}
+
+function drawGuide(ch) {
+  guideCtx.clearRect(0,0,340,340);
+  guideCtx.save();
+  guideCtx.font = 'bold 260px Hiragino Maru Gothic ProN, serif';
+  guideCtx.textAlign = 'center';
+  guideCtx.textBaseline = 'middle';
+  guideCtx.fillStyle = 'rgba(255,255,255,0.08)';
+  guideCtx.fillText(ch, 170, 180);
+
+  const strokePaths = getCharPoints(ch);
+  strokePaths.forEach(pts => {
+    guideCtx.beginPath();
+    guideCtx.moveTo(pts[0].x, pts[0].y);
+    pts.slice(1).forEach(p => guideCtx.lineTo(p.x, p.y));
+    guideCtx.strokeStyle = 'rgba(126,232,250,0.4)';
+    guideCtx.lineWidth = 18;
+    guideCtx.lineCap = 'round';
+    guideCtx.setLineDash([6,14]);
+    guideCtx.stroke();
+    guideCtx.setLineDash([]);
+  });
+
+  const start = strokePaths[0][0];
+  guideCtx.beginPath();
+  guideCtx.arc(start.x, start.y, 14, 0, Math.PI*2);
+  guideCtx.fillStyle = '#7ee8fa';
+  guideCtx.shadowColor = '#7ee8fa';
+  guideCtx.shadowBlur = 18;
+  guideCtx.fill();
+  guideCtx.shadowBlur = 0;
+  guideCtx.restore();
+}
+
+function clearDraw() {
+  drawCtx.clearRect(0,0,340,340);
+  strokes = [];
+  document.getElementById('feedback').textContent = '';
+}
+
+const dc = document.getElementById('draw-canvas');
+
+function getPos(e) {
+  const rect = dc.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - rect.left) * (340 / rect.width),
+           y: (src.clientY - rect.top)  * (340 / rect.height) };
+}
+
+dc.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; const p=getPos(e); strokes.push([p]); drawCtx.beginPath(); drawCtx.moveTo(p.x,p.y); });
+dc.addEventListener('touchmove',  e => { e.preventDefault(); if(!drawing)return; const p=getPos(e); strokes[strokes.length-1].push(p); paint(p); });
+dc.addEventListener('touchend',   e => { e.preventDefault(); drawing=false; });
+dc.addEventListener('mousedown',  e => { drawing=true; const p=getPos(e); strokes.push([p]); drawCtx.beginPath(); drawCtx.moveTo(p.x,p.y); });
+dc.addEventListener('mousemove',  e => { if(!drawing)return; const p=getPos(e); strokes[strokes.length-1].push(p); paint(p); });
+dc.addEventListener('mouseup',    ()=> drawing=false);
+
+function paint(p) {
+  drawCtx.lineTo(p.x, p.y);
+  drawCtx.strokeStyle='#ffd200'; drawCtx.lineWidth=22;
+  drawCtx.lineCap='round'; drawCtx.lineJoin='round';
+  drawCtx.shadowColor='#ffd200'; drawCtx.shadowBlur=16;
+  drawCtx.stroke();
+  drawCtx.beginPath(); drawCtx.moveTo(p.x,p.y);
+}
+
+function calcCoverage() {
+  const guide = getCharPoints(CHARS[currentIdx]).flat();
+  const drawn = strokes.flat();
+  if (!drawn.length) return 0;
+  return guide.filter(gp => drawn.some(dp => Math.hypot(dp.x-gp.x, dp.y-gp.y) < 40)).length / guide.length;
+}
+
+document.getElementById('btn-clear').addEventListener('click', clearDraw);
+document.getElementById('btn-ok').addEventListener('click', () => {
+  const fb = document.getElementById('feedback');
+  if (calcCoverage() >= 0.5) {
+    fb.style.color='#ffd700'; fb.textContent='🌟 すごい！ よくできました！';
+    launchFireworks();
+    setTimeout(() => {
+      currentIdx++;
+      if (currentIdx >= CHARS.length) { showComplete(); return; }
+      clearDraw(); updateCharDisplay(); drawGuide(CHARS[currentIdx]); fb.textContent='';
+    }, 1800);
+  } else {
+    fb.style.color='#ff6b6b'; fb.textContent='✏️ もういちどなぞってみよう！';
+    setTimeout(() => fb.textContent='', 1600);
+  }
+});
+
+function launchFireworks() {
+  const colors=['#ffd700','#ff6b9d','#7ee8fa','#a8ff78','#ff9a3c'];
+  for (let b=0; b<5; b++) setTimeout(() => {
+    const cx=Math.random()*fwCanvas.width, cy=Math.random()*fwCanvas.height*0.6+60;
+    const color=colors[Math.floor(Math.random()*colors.length)];
+    for (let i=0;i<40;i++) {
+      const a=(Math.PI*2*i)/40, s=3+Math.random()*4;
+      particles.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color,size:4+Math.random()*4});
+    }
+    requestAnimationFrame(animFW);
+  }, b*250);
+}
+
+function animFW() {
+  fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+  particles = particles.filter(p=>p.life>0.02);
+  particles.forEach(p => {
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.life*=0.94;
+    fwCtx.globalAlpha=p.life;
+    fwCtx.beginPath(); fwCtx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
+    fwCtx.fillStyle=p.color; fwCtx.shadowColor=p.color; fwCtx.shadowBlur=8;
+    fwCtx.fill();
+  });
+  fwCtx.globalAlpha=1; fwCtx.shadowBlur=0;
+  if (particles.length) requestAnimationFrame(animFW);
+  else fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+}
+
+function showComplete() {
+  document.getElementById('complete-banner').style.display='block';
+  launchFireworks(); setTimeout(launchFireworks,1000);
+}
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+  currentIdx=0; clearDraw(); updateCharDisplay(); drawGuide(CHARS[0]);
+  document.getElementById('complete-banner').style.display='none';
+  particles=[]; fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+});
+
+updateCharDisplay();
+drawGuide(CHARS[0]);
+</script>
+</body>
+</html>
