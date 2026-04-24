@@ -132,18 +132,6 @@ function drawGuide(ch) {
   guideCtx.fillText(ch, 170, 180);
 
   const strokePaths = getCharPoints(ch);
-  strokePaths.forEach(pts => {
-    guideCtx.beginPath();
-    guideCtx.moveTo(pts[0].x, pts[0].y);
-    pts.slice(1).forEach(p => guideCtx.lineTo(p.x, p.y));
-    guideCtx.strokeStyle = 'rgba(126,232,250,0.4)';
-    guideCtx.lineWidth = 18;
-    guideCtx.lineCap = 'round';
-    guideCtx.setLineDash([6,14]);
-    guideCtx.stroke();
-    guideCtx.setLineDash([]);
-  });
-
   const start = strokePaths[0][0];
   guideCtx.beginPath();
   guideCtx.arc(start.x, start.y, 14, 0, Math.PI*2);
@@ -190,13 +178,13 @@ function calcCoverage() {
   const guide = getCharPoints(CHARS[currentIdx]).flat();
   const drawn = strokes.flat();
   if (!drawn.length) return 0;
-  return guide.filter(gp => drawn.some(dp => Math.hypot(dp.x-gp.x, dp.y-gp.y) < 40)).length / guide.length;
+  return guide.filter(gp => drawn.some(dp => Math.hypot(dp.x-gp.x, dp.y-gp.y) < 25)).length / guide.length;
 }
 
 document.getElementById('btn-clear').addEventListener('click', clearDraw);
 document.getElementById('btn-ok').addEventListener('click', () => {
   const fb = document.getElementById('feedback');
-  if (calcCoverage() >= 0.5) {
+  if (calcCoverage() >= 0.7) {
     fb.style.color='#ffd700'; fb.textContent='🌟 すごい！ よくできました！';
     launchFireworks();
     setTimeout(() => {
