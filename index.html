@@ -28,6 +28,15 @@
   }
   #guide-canvas { background: rgba(255,255,255,0.06); }
   #draw-canvas { background: transparent; }
+  #illust {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 12px; min-height: 64px;
+  }
+  #illust-emoji { font-size: 52px; line-height: 1; }
+  #illust-word {
+    font-size: 22px; color: rgba(255,255,255,0.85);
+    letter-spacing: 2px;
+  }
   #feedback {
     margin-top: 12px; font-size: 28px; font-weight: bold;
     min-height: 44px; color: #fff; text-align: center;
@@ -65,6 +74,10 @@
   <canvas id="guide-canvas" width="340" height="340"></canvas>
   <canvas id="draw-canvas" width="340" height="340"></canvas>
 </div>
+<div id="illust">
+  <span id="illust-emoji"></span>
+  <span id="illust-word"></span>
+</div>
 <div id="feedback"></div>
 <div id="btn-row">
   <button id="btn-clear">けす</button>
@@ -97,24 +110,60 @@ function shuffle(arr) {
   }
   return a;
 }
+const CHAR_ILLUST = {
+  'あ':['🐜','あり'],       'い':['🐬','いるか'],    'う':['🐄','うし'],
+  'え':['✏️','えんぴつ'],   'お':['👹','おに'],       'か':['🦀','かに'],
+  'き':['🦊','きつね'],     'く':['🐻','くま'],       'け':['🎂','ケーキ'],
+  'こ':['🐶','こいぬ'],     'さ':['🐟','さかな'],     'し':['🦌','しか'],
+  'す':['🍉','すいか'],     'せ':['🌍','せかい'],     'そ':['☁️','そら'],
+  'た':['🥚','たまご'],     'ち':['🦋','ちょうちょ'], 'つ':['🌙','つき'],
+  'て':['🐞','てんとうむし'],'と':['🐯','とら'],       'な':['🍆','なす'],
+  'に':['🌈','にじ'],       'ぬ':['🧸','ぬいぐるみ'], 'ね':['🐱','ねこ'],
+  'の':['🚗','のりもの'],   'は':['🌸','はな'],       'ひ':['✈️','ひこうき'],
+  'ふ':['🚢','ふね'],       'へ':['🐍','へび'],       'ほ':['⭐','ほし'],
+  'ま':['🌲','まつ'],       'み':['🍊','みかん'],     'む':['🐛','むし'],
+  'め':['👓','めがね'],     'も':['🍑','もも'],       'や':['🐐','やぎ'],
+  'ゆ':['☃️','ゆき'],       'よ':['👻','ようかい'],   'ら':['🦁','らいおん'],
+  'り':['🍎','りんご'],     'る':['💎','るびー'],     'れ':['🧱','れんが'],
+  'ろ':['🕯️','ろうそく'],   'わ':['🐊','わに'],       'を':['🎭','をかし'],
+  'ん':['🍩','ドーナツ'],
+};
 const CHARS = shuffle(ALL_HIRAGANA);
 let currentIdx = 0;
 let drawing = false;
 let strokes = [];
 let particles = [];
 
-const guideCtx = document.getElementById('guide-canvas').getContext('2d');
-const drawCtx  = document.getElementById('draw-canvas').getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+
+function setupCanvas(canvas, cssSize) {
+  canvas.width  = cssSize * dpr;
+  canvas.height = cssSize * dpr;
+  canvas.style.width  = cssSize + 'px';
+  canvas.style.height = cssSize + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+const guideCtx = setupCanvas(document.getElementById('guide-canvas'), 340);
+const drawCtx  = setupCanvas(document.getElementById('draw-canvas'),  340);
 const fwCanvas = document.getElementById('fireworks-canvas');
 const fwCtx    = fwCanvas.getContext('2d');
-fwCanvas.width  = window.innerWidth;
-fwCanvas.height = window.innerHeight;
+fwCanvas.width  = window.innerWidth  * dpr;
+fwCanvas.height = window.innerHeight * dpr;
+fwCanvas.style.width  = window.innerWidth  + 'px';
+fwCanvas.style.height = window.innerHeight + 'px';
+fwCtx.scale(dpr, dpr);
 
 function updateCharDisplay() {
   document.getElementById('char-display').innerHTML =
     `<span class="char-dot current">${CHARS[currentIdx]}</span>`;
   document.getElementById('progress').textContent =
     `${currentIdx + 1} / ${CHARS.length}`;
+  const [emoji, word] = CHAR_ILLUST[CHARS[currentIdx]] || ['🌟', ''];
+  document.getElementById('illust-emoji').textContent = emoji;
+  document.getElementById('illust-word').textContent  = word;
 }
 
 function getCharPoints(ch) {
